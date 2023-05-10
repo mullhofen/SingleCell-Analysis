@@ -36,6 +36,7 @@ library(grr)
 # Step 1. Load the data and create the Seurat object
 
 ```{r, warning = FALSE}
+setwd("/Users/moritzullhofen/Desktop/ETH/SS23/AA Single Cell Technologies/DryLab/#2 More advanced single cell analyses/AA 3 Analysis of single-cell multiome data (RNA & ATAC)/")
 #read in RNA/ATAC h5 matrix
 counts <- Read10X_h5("Data/filtered_feature_bc_matrix.h5")
 
