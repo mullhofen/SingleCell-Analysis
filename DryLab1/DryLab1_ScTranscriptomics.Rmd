@@ -1,0 +1,290 @@
+---
+title: "SC_Drylab1_Sc-Transcriptomics"
+author: "Moritz Ullhofen"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(ggfortify)
+library(gplots)
+library(ggpubr)
+library(cowplot)
+library(dplyr)
+library(Seurat)
+library(Matrix)
+library(patchwork)
+library(sctransform)
+library(presto)
+library(voxhunt)
+library(harmony)
+library(SeuratWrappers)
+library(liger)
+```
+
+# Seurat object, QC and data preperation
+
+```{r}
+#1 read in data
+
+##look
+counts <- readMM("data/counts.mtx.gz")
+meta <- read.table("data/metadata.tsv.gz")
+dimnames(counts) <- list(make.unique(read.table("data/features.tsv.gz")[,1]), rownames(meta))
+seurat <- CreateSeuratObject(counts = counts, meta.data = meta)
+```
+
+```{r}
+##2 QC
+#check detected genes, transcripts and % mtRNA
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT[-\\.]")
+VlnPlot(seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
+
+plot1 <- FeatureScatter(seurat, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(seurat, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+ggarrange(plot1, plot2, ncol=2)
+
+#thresholds QC
+seurat <- subset(seurat, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent.mt < 5)
+
+```
+
+```{r, eval = FALSE}
+#alternative to 3-5: sctransform combines normalization, scaling and highly variable feature identification
+seurat <- SCTransform(seurat,
+                      vars.to.regress = c("nFeature_RNA", "percent.mt"),
+                      variable.features.n = 3000)
+```
+
+
+```{r}
+#3 normalization to compare cells
+seurat <- NormalizeData(seurat)
+
+#4 find genes with highest variables expression levels in all cells
+seurat <- FindVariableFeatures(seurat, nfeatures = 3000)
+
+top_features <- head(VariableFeatures(seurat), 20)
+plot1 <- VariableFeaturePlot(seurat)
+plot2 <- LabelPoints(plot = plot1, points = top_features, repel = TRUE)
+plot1+plot2
+
+#5 scale different gene base expression levels
+seurat <- ScaleData(seurat)
+
+#if needed and variation persists
+#seurat <- ScaleData(seurat, vars.to.regress = c("nFeature_RNA", "percent.mt"))
+```
+
+# Dimensionality reduction and visualization
+
+```{r, fig.height = 15, fig.width=15}
+##6 PCA
+seurat <- RunPCA(seurat, npcs = 50)
+ElbowPlot(seurat, ndims = ncol(Embeddings(seurat, "pca")))
+
+#check which genes contribute to top 20 PCs
+PCHeatmap(seurat, dims = 1:20, cells = 500, balanced = TRUE, ncol = 4)
+
+```
+
+```{r}
+## 7 t-SNE and UMAP
+seurat <- RunTSNE(seurat, dims = 1:20)
+seurat <- RunUMAP(seurat, dims = 1:20)
+
+```
+
+```{r, fig.height=10, fig.width=10}
+plot1 <- TSNEPlot(seurat)
+plot2 <- UMAPPlot(seurat)
+plot1
+plot2
+
+#plot cell markers for cell types of onterest
+plot1 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"),
+                     ncol=3, reduction = "tsne")
+plot2 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"),
+                     ncol=3, reduction = "umap")
+
+plot1 / plot2
+
+```
+
+# 8 Cell clustering
+
+``` {r}
+#shared nearest neighbour network and cluster
+seurat <- FindNeighbors(seurat, dims = 1:20)
+seurat <- FindClusters(seurat, resolution = 1)
+```
+
+``` {r}
+#visualize clustering results
+plot1 <- DimPlot(seurat, reduction = "tsne", label = TRUE, group.by = "line")
+plot2 <- DimPlot(seurat, reduction = "umap", label = TRUE, group.by = "line")
+plot1
+plot2
+
+## color by organoid tag in feature to see possblre different samples!! or color by other features
+#then do integration
+#check suppl files for integration?
+
+#put in {r} dimensions for plots
+
+```
+
+# 9 Annotate clusters
+
+```{r}
+#heatmap of marker genes across clusters
+ct_markers <- c("MKI67","NES","DCX","FOXG1", # G2M, NPC, neuron, telencephalon
+                "DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2", # ventral telencephalon related
+                "EMX1","PAX6","GLI3","EOMES","NEUROD6", # dorsal telencephalon related
+                "RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5") # non-telencephalon related
+DoHeatmap(seurat, features = ct_markers) + NoLegend()
+
+```
+
+``` {r}
+#identify cluster markers for each cluster
+#cl_markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = log(1.2))
+#cl_markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_log2FC)
+
+#faster: presto
+cl_markers_presto <- wilcoxauc(seurat)
+cl_markers_presto %>%
+    filter(logFC > log(1.2) & pct_in > 20 & padj < 0.05) %>%
+    group_by(group) %>%
+    arrange(desc(logFC), .by_group=T) %>%
+    top_n(n = 2, wt = logFC) %>%
+    print(n = 40, width = Inf)
+
+```
+
+``` {r, fig.height=10, fig.width=5}
+#visualize top 10 markers heatmap
+top5_cl_markers <- cl_markers_presto %>% group_by(group) %>% top_n(n = 5, wt = logFC)
+DoHeatmap(seurat, features = top5_cl_markers$feature) + NoLegend()
+```
+
+## Integration 2-1 Seurat
+
+```{r, eval = FALSE}
+#split seurat object by cell lines
+#CAVE use original seurat
+seurat_split <- SplitObject(seurat, split.by = "line")
+
+anchors <- FindIntegrationAnchors(object.list = seurat_split, dims = 1:30)
+#save and reload for memory usage
+#anchors <- readRDS('anchors.RDS')                          
+```
+
+````{r}
+#integrate CCA
+seurat <- IntegrateData(anchors, dims = 1:30)
+#save and reload for memory usage
+saveRDS(seurat, 'seurat_CCA.RDS')
+
+```
+
+```{r, fig.height=5, fig.width=5}
+#rerun Part1
+seurat_CCA <- readRDS('seurat_CCA.RDS')
+seurat_CCA <- ScaleData(seurat_CCA)
+seurat_CCA <- RunPCA(seurat_CCA, pcs = 50)
+seurat_CCA <- RunUMAP (seurat_CCA, dims = 1:20)
+seurat_CCA <- FindNeighbors (seurat_CCA, dims = 1:20) %>% FindClusters (resolution = 0.6)
+```
+
+```{r, fig.height=5, fig.width=8}
+#default assay back to rna for cluster marker identification and visualization
+DefaultAssay (seurat_CCA) <- "RNA"
+plot1 <- UMAPPlot (seurat_CCA, group.by="line")
+plot2 <- UMAPPlot (seurat_CCA, label = T)
+plot3 <- FeaturePlot (seurat_CCA, c("FOXG1", "EMX1", "DLX2", "LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout (width = c(1,2))
+
+
+#clustering, check marker genes in which cluster and compare to paper, maybe try voxhunt
+#redownload data via https://quadbiolab.github.io/VoxHunt/
+```
+# annotation of CCA integrated data
+
+```{r}
+#visualize cell type marker genes per cluster
+DefaultAssay (seurat_CCA) <- "integrated"
+ct_markers <- c("MKI67","NES","DCX","FOXG1", # G2M, NPC, neuron, telencephalon
+                "DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2", # ventral telencephalon related
+                "EMX1","PAX6","GLI3","EOMES","NEUROD6", # dorsal telencephalon related
+                "RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5") # non-telencephalon related
+DoHeatmap(seurat_CCA, features = ct_markers) + NoLegend()
+```
+
+```{r}
+#identify cluster marker genes
+cl_markers_presto <- wilcoxauc(seurat_CCA)
+cl_markers_presto %>%
+    filter(logFC > log(1.2) & pct_in > 20 & padj < 0.05) %>%
+    group_by(group) %>%
+    arrange(desc(logFC), .by_group=T) %>%
+    top_n(n = 2, wt = logFC) %>%
+    print(n = 40, width = Inf)
+
+#OR try longer:
+cl_markers <- FindAllMarkers(seurat_CCA, only.pos = TRUE, min.pct = 0.25, logfc.threshold = log(1.2))
+cl_markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_log2FC)
+```
+
+``` {r, fig.height=4, fig.width=6}
+#visualize top 5 markers heatmap
+top10_cl_markers <- cl_markers_presto %>% group_by(group) %>% top_n(n = 5, wt = logFC)
+DoHeatmap(seurat_CCA, features = top10_cl_markers$feature) + NoLegend()
+
+```
+
+## Integration 2-2 Harmony
+
+```{r}
+#integrate split object using harmony
+#CAVE use original seurat
+seurat <- RunHarmony(seurat, group.by.vars = "line", dims.use = 1:20, max.iter.harmony = 50)
+seurat <- RunUMAP(seurat, reduction = "harmony", dims = 1:20)
+seurat <- FindNeighbors(seurat, reduction = "harmony", dims = 1:20) %>% FindClusters(resolution = 0.6)
+##save and reload for memory usage
+saveRDS(seurat, file="seurat_harmony.RDS")
+```
+
+```{r, fig.height=5, fig.width=8}
+#visualize same as CCA
+plot1 <- UMAPPlot(seurat, group.by="line")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+
+## Integration 2-3 LIGER
+
+```{r}
+#CAVE use original seurat
+seurat <- ScaleData(seurat, split.by = "line", do.center = FALSE)
+seurat <- RunOptimizeALS(seurat, k = 20, lambda = 5, split.by = "orig.ident")
+seurat <- RunQuantileAlignSNF(seurat, split.by = "orig.ident")
+seurat <- RunUMAP(seurat, dims = 1:ncol(seurat[["iNMF"]]), reduction = "iNMF")
+seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>%
+    FindClusters(resolution = 0.6)
+#save and reload for memory usage
+saveRDS(seurat, file="seurat_LIGER.RDS")
+```
+
+```{r, fig.height=5, fig.width=8}
+#visualize same as CCA
+seurat_liger <- readRDS('seurat_LIGER_RDS')
+plot1 <- UMAPPlot(seurat_liger, group.by="line")
+plot2 <- UMAPPlot(seurat_liger, label = T)
+plot3 <- FeaturePlot(seurat_liger, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
