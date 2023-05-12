@@ -54,7 +54,7 @@ genome(annotations) <- "hg38"
 #create Seurat object for each sample (expression count RNA; fragment count ATAC)
 seurat <- CreateSeuratObject(counts = counts$`Gene Expression`,
                                  assay = "RNA",
-                                 project = "BVO")
+                                 project = "RO")
 seurat[['ATAC']] <- CreateChromatinAssay(counts = counts$`Peaks`,
                                              annotation = annotations,
                                              fragments = "Data/atac_fragments.tsv.gz",
@@ -173,7 +173,7 @@ seurat <- FindNeighbors(seurat, dims = 1:ncol(Embeddings(seurat, assay = "RNA"))
 ##cluster marker identification
 DE_cl_rna <- presto::wilcoxauc(seurat, "RNA_snn_res.0.2")
 top_markers <- DE_cl_rna %>%
-  filter(logFC > log(1.2) &
+  dplyr::filter(logFC > log(1.2) &
          auc > 0.7 &
          padj < 0.01 &
          pct_in - pct_out > 30 &
@@ -327,29 +327,30 @@ DefaultAssay(seurat) <- "RNA"
 #RNA differential expression analysis
 DE_ct <- presto::wilcoxauc(seurat, "celltype", seurat_assay = "RNA")
 top_markers_ct <- DE_ct %>%
-  filter(abs(logFC) > log(1.2) &
+  dplyr::filter(abs(logFC) > log(1.2) &
          padj < 0.01 &
          auc > 0.65 &
          pct_in - pct_out > 30 &
          pct_out < 20) %>%
   group_by(group) %>%
   top_n(10, wt = auc)
-top_markers_ct
+#top_markers_ct %>% top_n(1, wt = auc) %>% View()
 
 #ATAC differential accessibility analysis
 DefaultAssay(seurat) <- "ATAC"
 DA_ct <- presto::wilcoxauc(seurat, "celltype", seurat_assay = "ATAC")
 top_peaks_ct <- DA_ct %>%
-  filter(abs(logFC) > log(1.1) &
+  dplyr::filter(abs(logFC) > log(1.1) &
          padj < 0.01 &
          auc > 0.55) %>%
   group_by(group) %>%
   top_n(100, wt = auc)
 top_peaks_ct %>% top_n(5, wt=auc) -> top_5_peaks_ct
+#top_peaks_ct %>% top_n(1, wt=auc) %>% View()
 ```
 
 
-```{r, eval = FALSE}
+```{r eval=FALSE, include=FALSE}
 ## ALTERNATIVE to presto via FindAllMarkers
 #####CAVE ATAC peaks changed parameters for top peaks to find all cell types
 #cell type
@@ -392,18 +393,21 @@ seurat <- LinkPeaks(seurat,
 ```
 
 ```{r}
+#remove cell-type NA
+seurat$celltype[which(is.na(seurat$celltype))] = 'undetermined'
+
 #check the ATAC accessibility patterns in cell types for top gene marker of cell type
 DefaultAssay(seurat) <- "ATAC"
 
 #use GENES (top_markers_ct)
-#retinal pigment epithelial top marker gene TYRP1
+#retinal pigment epithelial top marker gene TRPM1
 p1 <- CoveragePlot(seurat,
-                   region = "TRPM1",
+                   region = "TRPM1", 
                    features = "TRPM1",
                    group.by = "celltype",
-                   assay = "ATAC",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
+
 #Rod top marker gene GNAT1
 p2 <- CoveragePlot(seurat,
                    region = "GNAT1",
@@ -415,19 +419,20 @@ patchwork::wrap_plots(p1, p2, ncol = 1)
 
 
 #use regions ATAC (top_peaks_ct)
-#retinal pigment epithelial top marker region chr19-16896824-16897846
-p1 <- CoveragePlot(seurat,
-                   region = "chr19-16896824-16897846",
+#retinal pigment epithelial top marker region chr1-43066511-43070243
+p3 <- CoveragePlot(seurat,
+                   region = "chr1-43066511-43070243",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-#Rod top marker region XXX
-p2 <- CoveragePlot(seurat,
-                   region = "chr17-50209360-50211102",
+#Rod top marker region chr2-181679416-181685338
+p4 <- CoveragePlot(seurat,
+                   region = "chr2-181679416-181685338",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-patchwork::wrap_plots(p1, p2, ncol = 1)
+patchwork::wrap_plots(p3, p4, ncol = 1)
+
 ```
 
 
@@ -463,7 +468,7 @@ motif_enrichment_RPE <- FindMotifs(seurat,
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RPE <- motif_enrichment_RPE %>%
-  filter(padj < 0.01 & fold.enrichment > 3) %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
   top_n(-4, wt = padj)
 
 #try for Rod
@@ -474,7 +479,7 @@ motif_enrichment_Rod <- FindMotifs(seurat,
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Rod <- motif_enrichment_Rod %>%
-  filter(padj < 0.01 & fold.enrichment > 3) %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
   top_n(-4, wt = padj)
 
 #plot top 4 overrepresented TF binding motifs for RPE and Rods
@@ -517,9 +522,9 @@ DA_motifs_ct <- presto::wilcoxauc(seurat, group_by = "celltype", seurat_assay = 
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol),
                            df_pfm$id)[feature])
 enriched_motifs_ct <- DA_motifs_ct %>%
-  filter(padj < 0.01 & auc > 0.7) %>%
+  dplyr::filter(padj < 0.01 & auc > 0.7) %>%
   group_by(group)
-top_motifs_ct <- top_n(enriched_motifs_ct, 1, wt=auc)
+top_motifs_ct <- top_n(enriched_motifs_ct, 2, wt=auc)
 
 #plor enriched motifs directly
 bluered_colscheme <- colorRampPalette(rev(c("#d73027","#f46d43","#fdae61","#fee090","#e0f3f8","#abd9e9","#74add1","#4575b4")))
@@ -538,9 +543,9 @@ FeaturePlot(seurat,
 #obtain list of TF (animalTFDB database)
 tfs <- read.table("Data/Homo_sapiens_TF.txt", sep="\t", header=T)
 tf_motifs_ct <- enriched_motifs_ct %>%
-  filter(symbol %in% tfs$Symbol)
+  dplyr::filter(symbol %in% tfs$Symbol)
 marker_tfs_ct <- DE_ct %>%
-  filter(feature %in% tfs$Symbol &
+  dplyr::filter(feature %in% tfs$Symbol &
          abs(logFC) > log(1.2) &
          padj < 0.01 &
          auc > 0.65 &
@@ -548,7 +553,7 @@ marker_tfs_ct <- DE_ct %>%
   inner_join(tf_motifs_ct,
              by = c("feature" = "symbol"),
              suffix = c("_tf","_motif")) %>%
-  filter(group_tf == group_motif)
+  dplyr::filter(group_tf == group_motif)
 
 top_tfs_ct <- group_by(marker_tfs_ct, group_tf) %>%
   top_n(3, wt = auc_motif)
@@ -614,7 +619,7 @@ seurat <- infer_grn(seurat,
 
 #extract significant TF-peak-target trios
 grn <- seurat@grn@networks$glm_network@coefs %>%
-  filter(padj < 0.01)
+  dplyr::filter(padj < 0.01)
 ```
 
 # Step 3: Regulons
@@ -661,7 +666,17 @@ p2 <- FeaturePlot(seurat,
                   order = T,
                   ncol = 6) & NoAxes() & NoLegend()
 (p1 / p2) + patchwork::plot_layout(height = c(1,2))
+
+
 ```
+
+```{r}
+###PAndo visualition netweork -> github
+muo_data <- get_network_graph(muo_data, graph_name='umap_graph')
+#https://quadbiolab.github.io/Pando/articles/visualization.html
+#default: graph labelled all TF, remove labels, look into source script (ggraph like ggplot2)
+```
+
 
 
 
