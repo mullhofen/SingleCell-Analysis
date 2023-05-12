@@ -28,7 +28,7 @@ library(chromVAR)
 library(Pando)
 library(doParallel)
 library(grr)
-
+library(tidyr)
 ```
 
 ## Section 1: Mono-modal integrative analysis of the RNA-ATAC scMultiome data
@@ -671,9 +671,20 @@ p2 <- FeaturePlot(seurat,
 ```
 
 ```{r}
-###PAndo visualition netweork -> github
-muo_data <- get_network_graph(muo_data, graph_name='umap_graph')
+#Module discovery
+seurat <- find_modules(
+    seurat, 
+    p_thresh = 0.1,
+    nvar_thresh = 2, 
+    min_genes_per_module = 1, 
+    rsq_thresh = 0.05
+)
+###Pando visualization network -> github
 #https://quadbiolab.github.io/Pando/articles/visualization.html
+
+seurat <- get_network_graph(seurat, network = "glm_network", graph_name='umap_graph')
+plot_network_graph(seurat, graph='umap_graph')
+
 #default: graph labelled all TF, remove labels, look into source script (ggraph like ggplot2)
 ```
 
