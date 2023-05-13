@@ -29,6 +29,11 @@ library(Pando)
 library(doParallel)
 library(grr)
 library(tidyr)
+library(tidygraph)
+library(ggraph)
+library(shiny)
+
+
 ```
 
 ## Section 1: Mono-modal integrative analysis of the RNA-ATAC scMultiome data
@@ -669,9 +674,10 @@ p2 <- FeaturePlot(seurat,
 
 
 ```
+# Step 4: Visualization of GRN
 
 ```{r}
-#Module discovery
+#TF module discovery (genes regulated by each TF)
 seurat <- find_modules(
     seurat, 
     p_thresh = 0.1,
@@ -679,13 +685,39 @@ seurat <- find_modules(
     min_genes_per_module = 1, 
     rsq_thresh = 0.05
 )
-###Pando visualization network -> github
+
+#plot goodness of fit and size of modules
+p1 <- plot_gof(seurat, point_size=3)
+p2 <- plot_module_metrics(seurat)
+
+p1/p2
+```
+
+```{r}
+###Pando: visualization GRN -> github
 #https://quadbiolab.github.io/Pando/articles/visualization.html
 
+#graph based on umap embedding of nodes (grey: inhibitory, orange: activating)
 seurat <- get_network_graph(seurat, network = "glm_network", graph_name='umap_graph')
 plot_network_graph(seurat, graph='umap_graph')
 
+#other graph layouts (no umap)
+seurat <- get_network_graph(
+    seurat, 
+    graph_name = 'full_graph', 
+    umap_method = 'none'
+)
+p1 <- plot_network_graph(seurat, graph='full_graph', layout='fr', text_size=5)
+p2 <- plot_network_graph(seurat, graph='full_graph', layout='drl', text_size=5)
+p3 <- plot_network_graph(seurat, graph='full_graph', layout='eigen', text_size=5)
+p4 <- plot_network_graph(seurat, graph='full_graph', layout='matrix', text_size=5)
+(p1 | p2) / (p3 | p4)
+
+
 #default: graph labelled all TF, remove labels, look into source script (ggraph like ggplot2)
+
+# Assuming the .R file is named network_functions.R
+#source("/Users/moritzullhofen/Desktop/ETH/SS23/AA Single Cell Technologies/DryLab/#2 More advanced single cell analyses/AA 3 Analysis of single-cell multiome data (RNA & ATAC)/Data/plots.R")
 ```
 
 
