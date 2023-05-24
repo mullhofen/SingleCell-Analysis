@@ -318,9 +318,9 @@ FeaturePlot(seurat, paste0("Cluster",1:9), order=T, reduction = "umap")
 seurat$celltype <- setNames(rep(c("Cone","Rod","Müller glia","retinal pigment epithelia cells", "horizontal cells", "bipolar cell cytoplasm", "retinal progenitor cells"), 
                                 c(1,1,2,1,2,3,1)),
                             c(1,0,c(3,4),5, c(6,11), c(8,10,9), 7))[as.character(seurat$wsnn_res.0.2)]
-p1 <- UMAPPlot(seurat, group.by = "celltype", label=T) & NoAxes()
+p_cluster_celltypes <- UMAPPlot(seurat, group.by = "celltype", label=T) & NoAxes()
 
-p1
+p_cluster_celltypes
 ```
 
 # Step 2. Cell type gene/peak marker identification and visualization of the chromatin
@@ -401,42 +401,132 @@ seurat <- LinkPeaks(seurat,
 #remove cell-type NA
 seurat$celltype[which(is.na(seurat$celltype))] = 'undetermined'
 
+#top2 markers for RNA cell type
+top_markers_ct %>% group_by(group) %>% top_n(1, wt = auc) 
+ 
 #check the ATAC accessibility patterns in cell types for top gene marker of cell type
 DefaultAssay(seurat) <- "ATAC"
 
 #use GENES (top_markers_ct)
-#retinal pigment epithelial top marker gene TRPM1
-p1 <- CoveragePlot(seurat,
+#bipolar cell cytoplasm
+p_BP <- CoveragePlot(seurat,
+                   region = "CA10", 
+                   features = "CA10",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#Cone
+p_cone <- CoveragePlot(seurat,
+                   region = "PDE6H", 
+                   features = "PDE6H",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#horizontal cells
+p_HC <- CoveragePlot(seurat,
+                   region = "STMN2", 
+                   features = "STMN2",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#Müller glia
+p_MG <- CoveragePlot(seurat,
+                   region = "AKAP12", 
+                   features = "AKAP12",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#retinal pigment epithelial 
+p_RPE <- CoveragePlot(seurat,
                    region = "TRPM1", 
                    features = "TRPM1",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-#Rod top marker gene GNAT1
-p2 <- CoveragePlot(seurat,
+#retinal progenitor cells
+p_RP <- CoveragePlot(seurat,
+                   region = "CPAMD8", 
+                   features = "CPAMD8",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#Rod
+p_rod <- CoveragePlot(seurat,
                    region = "GNAT1",
                    features = "GNAT1",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-patchwork::wrap_plots(p1, p2, ncol = 1)
+patchwork::wrap_plots(p_BP, p_cone, ncol = 1)
+patchwork::wrap_plots(p_HC, p_MG, ncol = 1)
+patchwork::wrap_plots(p_RPE, p_RP, ncol = 1)
+p_rod
 
+```
 
-#use regions ATAC (top_peaks_ct)
-#retinal pigment epithelial top marker region chr1-43066511-43070243
-p3 <- CoveragePlot(seurat,
-                   region = "chr1-43066511-43070243",
+```{r}
+#top2 ATAC cell type regions
+top_peaks_ct %>% group_by(group) %>% top_n(1, wt = auc)
+
+#bipolar cell cytoplasm
+p_BP <- CoveragePlot(seurat,
+                   region = "chr2-219509052-219517235",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-#Rod top marker region chr2-181679416-181685338
-p4 <- CoveragePlot(seurat,
-                   region = "chr2-181679416-181685338",
+
+#Cone
+p_cone <- CoveragePlot(seurat,
+                   region = "chr2-181679416-181685338", 
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-patchwork::wrap_plots(p3, p4, ncol = 1)
+
+#horizontal cells
+p_HC <- CoveragePlot(seurat,
+                   region = "chr22-23565459-23566833", 
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#Müller glia
+p_MG <- CoveragePlot(seurat,
+                   region = "chr19-54420076-54421480", 
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#retinal pigment epithelial
+p_RPE <- CoveragePlot(seurat,
+                   region = "chr1-43066511-43070243", 
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#retinal progenitor cells
+p_RP <- CoveragePlot(seurat,
+                   region = "chr3-194133627-194138292	", 
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+#Rod 
+p_rod <- CoveragePlot(seurat,
+                   region = "chr2-181679416-181685338	",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+patchwork::wrap_plots(p_BP, p_cone, ncol = 1)
+patchwork::wrap_plots(p_HC, p_MG, ncol = 1)
+patchwork::wrap_plots(p_RPE, p_RP, ncol = 1)
+p_rod
 
 ```
 
@@ -462,11 +552,52 @@ seurat <- AddMotifs(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, pfm = pfm)
 #identify enriched TF binding motifs in our peak list (celltype specific)
 open_peaks <- AccessiblePeaks(seurat)
 
-#try for retinal pigment epithelial
 peaks_matched <- MatchRegionStats(meta.feature = seurat[['ATAC']]@meta.features[open_peaks, ],
                                   query.feature = seurat[['ATAC']]@meta.features[top_peaks_ct$feature, ],
                                   n = 50000)
 
+
+#bipolar cell cytoplasm	
+motif_enrichment_BP <- FindMotifs(seurat,
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "bipolar cell cytoplasm"],
+                                    background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_BP <- motif_enrichment_BP %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-6, wt = padj)
+
+#Cone
+motif_enrichment_Cone <- FindMotifs(seurat,
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "Cone"],
+                                    background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_Cone <- motif_enrichment_Cone %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-6, wt = padj)
+
+#horizontal cells
+motif_enrichment_HC <- FindMotifs(seurat,
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "horizontal cells"],
+                                    background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_HC <- motif_enrichment_HC %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-6, wt = padj)
+
+#Müller glia
+motif_enrichment_MG <- FindMotifs(seurat,
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "Müller glia"],
+                                    background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_MG <- motif_enrichment_MG %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-6, wt = padj)
+
+#retinal pigment epithelial
 motif_enrichment_RPE <- FindMotifs(seurat,
                                     features = top_peaks_ct$feature[top_peaks_ct$group == "retinal pigment epithelia cells"],
                                     background = peaks_matched) %>%
@@ -474,9 +605,19 @@ motif_enrichment_RPE <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RPE <- motif_enrichment_RPE %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
-#try for Rod
+#retinal progenitor cells
+motif_enrichment_RP <- FindMotifs(seurat,
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "retinal progenitor cells"],
+                                    background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_RP <- motif_enrichment_RP %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-6, wt = padj)
+
+#Rod
 
 motif_enrichment_Rod <- FindMotifs(seurat,
                                      features = top_peaks_ct$feature[top_peaks_ct$group == "Rod"],
@@ -485,29 +626,72 @@ motif_enrichment_Rod <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Rod <- motif_enrichment_Rod %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
-#plot top 4 overrepresented TF binding motifs for RPE and Rods
-p1 <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:4], ncol=4)
-p2 <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:4], ncol=4)
-p1 / p2
+#plot top 4 overrepresented TF binding motifs for cell types
+p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:6], ncol = 4)
+p_cone <- MotifPlot(seurat, motifs = enriched_motif_Cone$motif[1:6], ncol=4)
+p_BP / p_cone
+
+p_HC <- MotifPlot(seurat, motifs = enriched_motif_HC$motif[1:6], ncol = 4)
+p_MG <- MotifPlot(seurat, motifs = enriched_motif_MG$motif[1:6], ncol=4)
+p_HC / p_MG
+
+p_RPE <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:6], ncol = 4)
+p_RP <- MotifPlot(seurat, motifs = enriched_motif_RP$motif[1:6], ncol=4)
+p_RPE / p_RP
+
+p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:6], ncol = 4)
+p_Rod
 ```
 ```{r}
-#check expression of corresponidng TFs
+#check expression of corresponding TFs
 DefaultAssay(seurat) <- "RNA"
-p1 <- FeaturePlot(seurat,
-                  c("NFIB","Arnt","NFIC(var.2)","ZNF740"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p2 <- FeaturePlot(seurat,
-                  c("GSC2","GSC","DMBX1","CRX"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p1
-p2
 
+p_BP <- FeaturePlot(seurat,
+                  c("NEUROD1","NEUROG(var.2)","Ptf1a","TAL1::TCF3", "Ascl2", "BHLHA15(var.2)"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_cone <- FeaturePlot(seurat,
+                  c("Crx","GSC2","OTX2","GSC", "Dmbx1", "PITX3"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_HC <- FeaturePlot(seurat,
+                  c("EGR2","NR2C2","KLF17","Znf281", "MZF1(var.2)", "ZBTB14"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_MG <- FeaturePlot(seurat,
+                  c("MZF1(var.2)","Sox6","Znf281","SOX4", "PLAG1", "NFIB"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_RPE <- FeaturePlot(seurat,
+                  c("NFIB","Arnt","NFIX(var.2)","ZNF740", "MZF1(var.2)", "TFAP2A"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_RP <- FeaturePlot(seurat,
+                  c("MZF1(var.2)","PLAG1","Znf281","STAT1", "ZNF740", "Stat4"),
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+p_Rod <- FeaturePlot(seurat,
+                  c("GSC2","GSC","Dmbx1","Crx", "PITX3","NEUROG(var.2)") ,
+                  reduction="umap",
+                  order=T,
+                  ncol=4) & NoAxes() & NoLegend()
+
+p_BP
+p_cone
+p_HC
+p_MG
+p_RPE
+p_RP
+p_Rod
+p_cluster_celltypes
 ##if not cell-type specific: not bio relevant, not critcial celltype defined TF
 ##check more details, not just top 4
 ```
@@ -518,7 +702,7 @@ p2
 #estimates motif activity score for each motif on cell level
 
 #create chromvar assay (JASPAR motifs and chromvar est. accessibility scores)
-seurat <- RunChromVAR(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, assay ="ATAC")
+#seurat <- RunChromVAR(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, assay ="ATAC")
 
 #new differential activity analysis with chromvar
 DefaultAssay(seurat) <- "chromvar"
@@ -529,7 +713,7 @@ DA_motifs_ct <- presto::wilcoxauc(seurat, group_by = "celltype", seurat_assay = 
 enriched_motifs_ct <- DA_motifs_ct %>%
   dplyr::filter(padj < 0.01 & auc > 0.7) %>%
   group_by(group)
-top_motifs_ct <- top_n(enriched_motifs_ct, 2, wt=auc)
+top_motifs_ct <- top_n(enriched_motifs_ct, 1, wt=auc)
 
 #plor enriched motifs directly
 bluered_colscheme <- colorRampPalette(rev(c("#d73027","#f46d43","#fdae61","#fee090","#e0f3f8","#abd9e9","#74add1","#4575b4")))
@@ -538,7 +722,7 @@ FeaturePlot(seurat,
             cols = bluered_colscheme(30),
             reduction = "umap",
             ncol = 3) & NoAxes() & NoLegend()
-
+p_cluster_celltypes
 ##change top number of motifs to 2 or 3
 ```
 
@@ -546,7 +730,8 @@ FeaturePlot(seurat,
 #together with the DE analysis on TFs between cell types. We can
 
 #obtain list of TF (animalTFDB database)
-tfs <- read.table("Data/Homo_sapiens_TF.txt", sep="\t", header=T)
+
+tfs <- read.table("/Users/moritzullhofen/Desktop/ETH/SS23/AA Single Cell Technologies/DryLab/#2 More advanced single cell analyses/AA 3 Analysis of single-cell multiome data (RNA & ATAC)/Data/Homo_sapiens_TF.txt", sep="\t", header=T)
 tf_motifs_ct <- enriched_motifs_ct %>%
   dplyr::filter(symbol %in% tfs$Symbol)
 marker_tfs_ct <- DE_ct %>%
@@ -561,7 +746,7 @@ marker_tfs_ct <- DE_ct %>%
   dplyr::filter(group_tf == group_motif)
 
 top_tfs_ct <- group_by(marker_tfs_ct, group_tf) %>%
-  top_n(3, wt = auc_motif)
+  top_n(2, wt = auc_motif)
 
 #correlate DE of RNA with enriched motifs -> TFs
 beach_colscheme <- colorRampPalette(c("#cdcdcd","#edf8b1","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#0c2c84"))
