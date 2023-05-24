@@ -196,6 +196,8 @@ p2 <- FeaturePlot(seurat,
                   order = T,
                   ncol=3) & NoAxes() & NoLegend()
 (p1 | p2) + patchwork::plot_layout(widths = c(2,3))
+
+p1 + ggtitle("RNA-seq. UMAP clustering")
 ```
 
 ```{r, eval =FALSE}
@@ -274,6 +276,8 @@ c("NR2E3", "EBF3","NEUROG1","TFAP2A","PRDM8","TFAP2B","EGR2","MYRF"),
 reduction = "umap_atac") & NoAxes() & NoLegend()
 
 p1 | p2
+
+p1 + ggtitle("ATAC-seq. UMAP embedding")
 ```
 
 ## Section 2: Bi-modal integrative analysis of the RNA-ATAC scMultiome data
@@ -295,11 +299,13 @@ seurat <- FindMultiModalNeighbors(seurat,
 seurat <- RunUMAP(seurat, nn.name = "weighted.nn", assay = "RNA")
 seurat <- FindClusters(seurat, graph.name = "wsnn", resolution = 0.2)
 p1 <- UMAPPlot(seurat, group.by = "orig.ident") & NoAxes()
-p2 <- UMAPPlot(seurat, group.by = "wsnn_res.0.2", label=T) & NoAxes()
+p2 <- UMAPPlot(seurat, group.by = "wsnn_res.0.2", label=T) & NoAxes() & NoLegend()
 p3 <- FeaturePlot(seurat,
                   c("NR2E3", "EBF3","NEUROG1","TFAP2A","PRDM8","TFAP2B","EGR2","MYRF"),
                   reduction = "umap") & NoAxes() & NoLegend()
 p1 | p2 | p3
+
+p2 + ggtitle("weighted kNN UMAP clustering of both RNA & ATAC data")
 
 #find top genes for clusters
 DE_ct <- presto::wilcoxauc(seurat, "seurat_clusters", seurat_assay = "RNA")
@@ -606,6 +612,7 @@ seurat <- AddMotifs(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, pfm = pfm)
 
 ```{r}
 #identify enriched TF binding motifs in our peak list (celltype specific)
+DefaultAssay(seurat) <- "ATAC"
 open_peaks <- AccessiblePeaks(seurat)
 
 peaks_matched <- MatchRegionStats(meta.feature = seurat[['ATAC']]@meta.features[open_peaks, ],
@@ -621,7 +628,7 @@ motif_enrichment_BP <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_BP <- motif_enrichment_BP %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #Cone
 motif_enrichment_Cone <- FindMotifs(seurat,
@@ -631,7 +638,7 @@ motif_enrichment_Cone <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Cone <- motif_enrichment_Cone %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #horizontal cells
 motif_enrichment_HC <- FindMotifs(seurat,
@@ -641,7 +648,7 @@ motif_enrichment_HC <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_HC <- motif_enrichment_HC %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #Müller glia
 motif_enrichment_MG <- FindMotifs(seurat,
@@ -651,7 +658,7 @@ motif_enrichment_MG <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_MG <- motif_enrichment_MG %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #retinal pigment epithelial
 motif_enrichment_RPE <- FindMotifs(seurat,
@@ -661,7 +668,7 @@ motif_enrichment_RPE <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RPE <- motif_enrichment_RPE %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #retinal progenitor cells
 motif_enrichment_RP <- FindMotifs(seurat,
@@ -671,7 +678,7 @@ motif_enrichment_RP <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RP <- motif_enrichment_RP %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #Rod
 
@@ -682,7 +689,7 @@ motif_enrichment_Rod <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Rod <- motif_enrichment_Rod %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #AV
 
@@ -693,7 +700,7 @@ motif_enrichment_AC <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_AC <- motif_enrichment_AC %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #RGC BC
 
@@ -704,84 +711,58 @@ motif_enrichment_RGC <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RGC <- motif_enrichment_RGC %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-4, wt = padj)
+  top_n(-6, wt = padj)
 
 #plot top 4 overrepresented TF binding motifs for cell types
-p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:4], ncol = 4)
-p_cone <- MotifPlot(seurat, motifs = enriched_motif_Cone$motif[1:4], ncol=4)
+p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:6], ncol = 6)
+p_cone <- MotifPlot(seurat, motifs = enriched_motif_Cone$motif[1:6], ncol=6)
 p_BP / p_cone
 
-p_HC <- MotifPlot(seurat, motifs = enriched_motif_HC$motif[1:4], ncol = 4)
-p_MG <- MotifPlot(seurat, motifs = enriched_motif_MG$motif[1:4], ncol=4)
+p_HC <- MotifPlot(seurat, motifs = enriched_motif_HC$motif[1:6], ncol = 6)
+p_MG <- MotifPlot(seurat, motifs = enriched_motif_MG$motif[1:6], ncol=6)
 p_HC / p_MG
 
-p_RPE <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:4], ncol = 4)
-p_RP <- MotifPlot(seurat, motifs = enriched_motif_RP$motif[1:4], ncol=4)
+p_RPE <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:6], ncol = 6)
+p_RP <- MotifPlot(seurat, motifs = enriched_motif_RP$motif[1:6], ncol=6)
 p_RPE / p_RP
 
-p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:4], ncol = 4)
-p_AC <- MotifPlot(seurat, motifs = enriched_motif_AC$motif[1:4], ncol = 4)
+p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:6], ncol = 6)
+p_AC <- MotifPlot(seurat, motifs = enriched_motif_AC$motif[1:6], ncol = 6)
 p_Rod / p_AC
 
-p_RGC <- MotifPlot(seurat, motifs = enriched_motif_RGC$motif[1:4], ncol = 4)
+p_RGC <- MotifPlot(seurat, motifs = enriched_motif_RGC$motif[1:6], ncol = 6)
 p_RGC
+
+
+
+
 ```
-```{r}
+```{r, warning =FALSE}
 #check expression of corresponding TFs
 DefaultAssay(seurat) <- "RNA"
 
-#write a for loop
-# Looping through the variable last part
+# Loop through the variable suffixes for enriched motif plots
 for (i in c("RP", "RGC", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
-  # Constructing the variable name using paste0
+  # Construct the variable name using paste0
   temp_name <- get(paste0("enriched_motif_", i))
-  temp_name$motif.name
-  }
+  
+  # Access the "motif.name" column within the data frame
+  motif_names <- temp_name$motif.name
+  
+  # Create the feature plot for the current variable
+  plot_title <- paste0("p_", i)
+  feature_plot <- FeaturePlot(seurat,
+                              motif_names,
+                              reduction = "umap",
+                              order = TRUE,
+                              ncol = 4) & NoAxes() & NoLegend()
+  
+  # Print the feature plot
+  print(feature_plot)
+}
 
 
-p_BP <- FeaturePlot(seurat,
-                  c("NEUROD1","NEUROG(var.2)","Ptf1a","TAL1::TCF3", "Ascl2", "BHLHA15(var.2)"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_cone <- FeaturePlot(seurat,
-                  c("Crx","GSC2","OTX2","GSC", "Dmbx1", "PITX3"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_HC <- FeaturePlot(seurat,
-                  c("EGR2","NR2C2","KLF17","Znf281", "MZF1(var.2)", "ZBTB14"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_MG <- FeaturePlot(seurat,
-                  c("MZF1(var.2)","Sox6","Znf281","SOX4", "PLAG1", "NFIB"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_RPE <- FeaturePlot(seurat,
-                  c("NFIB","Arnt","NFIX(var.2)","ZNF740", "MZF1(var.2)", "TFAP2A"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_RP <- FeaturePlot(seurat,
-                  c("MZF1(var.2)","PLAG1","Znf281","STAT1", "ZNF740", "Stat4"),
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
-p_Rod <- FeaturePlot(seurat,
-                  c("GSC2","GSC","Dmbx1","Crx", "PITX3","NEUROG(var.2)") ,
-                  reduction="umap",
-                  order=T,
-                  ncol=4) & NoAxes() & NoLegend()
 
-p_BP
-p_cone
-p_HC
-p_MG
-p_RPE
-p_RP
-p_Rod
 p_cluster_celltypes
 ##if not cell-type specific: not bio relevant, not critcial celltype defined TF
 ##check more details, not just top 4
