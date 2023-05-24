@@ -147,7 +147,7 @@ seurat <- subset(seurat,
 
 ```{r}
 #RNA analysis pipeline
-#plot representative marker expr4ssion for major cell types (retina)
+#plot representative marker expression for major cell types (retina)
 DefaultAssay(seurat) <- "RNA"
 seurat <- NormalizeData(seurat) %>% #data normalization
   FindVariableFeatures(nfeatures = 3000) %>% #highly variable genes identification
@@ -241,7 +241,7 @@ p2 <- FeaturePlot(seurat,
 
 ```{r}
 #4.1 feature selection
-#only select peaks in <50 cells
+#only select peaks in >50 cells
 DefaultAssay(seurat) <- "ATAC"
 seurat <- FindTopFeatures(seurat, min.cutoff = 50)
 
@@ -278,7 +278,7 @@ p1 | p2
 
 ## Section 2: Bi-modal integrative analysis of the RNA-ATAC scMultiome data
 
-Integrate RNA and ATAC assays to identify cell type heterogeneity, and look for putative cis- and trans-regulatory elements that could be important for cell type/state identity establishment, maintanence and transition. 
+Integrate RNA and ATAC assays to identify cell type heterogeneity, and look for putative cis- and trans-regulatory elements that could be important for cell type/state identity establishment, maintenance and transition. 
 
 # Step 1: Weighted nearest neighbor analysis
 
@@ -301,6 +301,16 @@ p3 <- FeaturePlot(seurat,
                   reduction = "umap") & NoAxes() & NoLegend()
 p1 | p2 | p3
 
+#find top genes for clusters
+DE_ct <- presto::wilcoxauc(seurat, "seurat_clusters", seurat_assay = "RNA")
+top_clusters_ct <- DE_ct %>%
+  dplyr::filter(abs(logFC) > log(1.2) &
+         padj < 0.01 &
+         auc > 0.65 &
+         pct_in - pct_out > 30 &
+         pct_out < 20) %>%
+  group_by(group) %>%
+  top_n(10, wt = auc) %>% View()
 
 ```
 
@@ -308,19 +318,35 @@ p1 | p2 | p3
 ```{r}
 #Annotation, gene list from paper, cluster corrwspond to cell type from paper
 
-marker_genes <- list(c("CYP1B1", "HES5", "NME4", "ISYNA1", "CD99", "PRSS23"),c("ТТС9B", "ELAVL3", "GNG3", "CHRNB3", "EBF3", "EBF1", "POU4F2", "SLC18A2", "POU6F2", "CNTN2", "NEFM", "ELAVL4", "NEFL", "RAB31", "ID3", "TMSB15A"),c( "GRIA4", "TNR", "TFAP2B", "ONECUT1", "PLXNA2", "ONECUT2", "APBB2", "PROX1", "CNTNAP2"),c( "GAD1", "RUNX1T1", "PLPPR1", "MIR181A1HG", "NRXN1"),c( "TMEM215", "CA10", "GNG13", "VSX1", "HPCA", "DOK6", "IGSF21", "NEUROD4", "MAP7", "CADPS"),c( "AC023905.1", "GNAT2", "PEX5L", "KCNB2", "MYL4", "NXNL1", "SLC38A5", "RRAD", "SH3GL2", "MLXIP"),c( "PDE6A", "CLUL1", "NR2E3", "CABP5", "SAG", "GNAT1", "REEP6", "GPR160", "PRPH2", "AL451062.1"),c( "F3", "FLT1", "CFI", "OAF", "LGALS3", "PHLDA1", "LGI4", "WIF1", "CRYM"),c( "RLBP1", "SFRP1", "SFRP5", "PLD5", "OC90", "NCCRP1", "MET", "COL8A1", "ATP6V1C2", "TYRP1", "TRPM1"))
+#marker_genes <- list(c("CYP1B1", "HES5", "NME4", "ISYNA1", "CD99", "PRSS23"),c("ТТС9B", "ELAVL3", "GNG3", "CHRNB3", "EBF3", "EBF1", "POU4F2", "SLC18A2", "POU6F2", "CNTN2", "NEFM", "ELAVL4", "NEFL", "RAB31", "ID3", "TMSB15A"),c( "GRIA4", "TNR", "TFAP2B", "ONECUT1", "PLXNA2", "ONECUT2", "APBB2", "PROX1", "CNTNAP2"),c( "GAD1", "RUNX1T1", "PLPPR1", "MIR181A1HG", "NRXN1"),c( "TMEM215", "CA10", "GNG13", "VSX1", "HPCA", "DOK6", "IGSF21", "NEUROD4", "MAP7", "CADPS"),c( "AC023905.1", "GNAT2", "PEX5L", "KCNB2", "MYL4", "NXNL1", "SLC38A5", "RRAD", "SH3GL2", "MLXIP"),c( "PDE6A", "CLUL1", "NR2E3", "CABP5", "SAG", "GNAT1", "REEP6", "GPR160", "PRPH2", "AL451062.1"),c( "F3", "FLT1", "CFI", "OAF", "LGALS3", "PHLDA1", "LGI4", "WIF1", "CRYM"),c( "RLBP1", "SFRP1", "SFRP5", "PLD5", "OC90", "NCCRP1", "MET", "COL8A1", "ATP6V1C2", "TYRP1", "TRPM1"))
+
+#more specific list with no coexpression in other cell types:
+marker_genes <- list(c("CYP1B1", "HES5", "NME4", "ISYNA1", "CD99", "PRSS23"),c("CHRNB3", "EBF3", "EBF1", "POU4F2", "SLC18A2", "POU6F2", "CNTN2", "NEFM", "ELAVL4", "NEFL"),c( "GRIA4", "TNR", "TFAP2B", "ONECUT1", "PLXNA2", "ONECUT2", "APBB2", "PROX1", "CNTNAP2"),c("TFAP2A", "GAD1"),c( "TMEM215", "CA10", "GNG13", "VSX1"),c( "AC023905.1", "GNAT2", "PEX5L", "KCNB2", "MYL4", "NXNL1", "SLC38A5", "RRAD", "SH3GL2", "MLXIP"),c( "PDE6A", "CLUL1", "NR2E3", "CABP5", "SAG", "GNAT1", "REEP6", "GPR160", "PRPH2", "AL451062.1"),c( "F3", "FLT1", "CFI", "OAF", "LGALS3", "PHLDA1", "LGI4", "WIF1", "CRYM"),c( "RLBP1", "SFRP1", "SFRP5", "PLD5", "OC90", "NCCRP1", "MET", "COL8A1", "ATP6V1C2", "TYRP1", "TRPM1"))
 
 DefaultAssay(seurat) <- "RNA"
 seurat <- AddModuleScore(seurat, marker_genes)
 FeaturePlot(seurat, paste0("Cluster",1:9), order=T, reduction = "umap")
 
 #correlate gene cluster to cell type by eye
-seurat$celltype <- setNames(rep(c("Cone","Rod","Müller glia","retinal pigment epithelia cells", "horizontal cells", "bipolar cell cytoplasm", "retinal progenitor cells"), 
-                                c(1,1,2,1,2,3,1)),
-                            c(1,0,c(3,4),5, c(6,11), c(8,10,9), 7))[as.character(seurat$wsnn_res.0.2)]
+seurat$celltype <- setNames(rep(c("RPC","BC (RGC?)","HC","AC", "BC", "Cone", "Rod", "MG", "RPE"), 
+                                c(1,1,1,1,2, 1, 1, 2, 1 )),
+                            c(7,8,6,11, c(9,10), 1, 0, c(3,4), 5))[as.character(seurat$wsnn_res.0.2)]
+
 p_cluster_celltypes <- UMAPPlot(seurat, group.by = "celltype", label=T) & NoAxes()
 
 p_cluster_celltypes
+
+#all clusters seperately
+FeaturePlot(seurat, "Cluster1", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster2", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster3", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster4", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster5", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster6", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster7", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster8", order=T, reduction = "umap")
+FeaturePlot(seurat, "Cluster9", order=T, reduction = "umap")
+
 ```
 
 # Step 2. Cell type gene/peak marker identification and visualization of the chromatin
@@ -401,15 +427,15 @@ seurat <- LinkPeaks(seurat,
 #remove cell-type NA
 seurat$celltype[which(is.na(seurat$celltype))] = 'undetermined'
 
-#top2 markers for RNA cell type
-top_markers_ct %>% group_by(group) %>% top_n(1, wt = auc) 
+#top marker for RNA cell type
+top_markers_ct %>% group_by(group) %>% top_n(1, wt = auc) %>% View() 
  
 #check the ATAC accessibility patterns in cell types for top gene marker of cell type
 DefaultAssay(seurat) <- "ATAC"
 
 #use GENES (top_markers_ct)
-#bipolar cell cytoplasm
-p_BP <- CoveragePlot(seurat,
+#BC
+p_BC <- CoveragePlot(seurat,
                    region = "CA10", 
                    features = "CA10",
                    group.by = "celltype",
@@ -424,7 +450,7 @@ p_cone <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-#horizontal cells
+#HC
 p_HC <- CoveragePlot(seurat,
                    region = "STMN2", 
                    features = "STMN2",
@@ -432,7 +458,7 @@ p_HC <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-#Müller glia
+#MG
 p_MG <- CoveragePlot(seurat,
                    region = "AKAP12", 
                    features = "AKAP12",
@@ -440,7 +466,7 @@ p_MG <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-#retinal pigment epithelial 
+#RPE
 p_RPE <- CoveragePlot(seurat,
                    region = "TRPM1", 
                    features = "TRPM1",
@@ -448,8 +474,8 @@ p_RPE <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-#retinal progenitor cells
-p_RP <- CoveragePlot(seurat,
+#RPC
+p_RPC <- CoveragePlot(seurat,
                    region = "CPAMD8", 
                    features = "CPAMD8",
                    group.by = "celltype",
@@ -463,10 +489,27 @@ p_rod <- CoveragePlot(seurat,
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
-patchwork::wrap_plots(p_BP, p_cone, ncol = 1)
-patchwork::wrap_plots(p_HC, p_MG, ncol = 1)
-patchwork::wrap_plots(p_RPE, p_RP, ncol = 1)
-p_rod
+
+#AC
+p_AC <- CoveragePlot(seurat,
+                   region = "PCDH11X",
+                   features = "PCDH11X",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+#BC_RGC
+p_RGC <- CoveragePlot(seurat,
+                   region = "NETO1",
+                   features = "NETO1",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
+patchwork::wrap_plots(p_RP, p_RGC, ncol = 1)
+patchwork::wrap_plots(p_HC, p_AC, ncol = 1)
+patchwork::wrap_plots(p_BC, p_cone, ncol = 1)
+patchwork::wrap_plots(p_Rod, p_MG, ncol = 1)
+p_RPE
 
 ```
 
@@ -475,8 +518,8 @@ p_rod
 top_peaks_ct %>% group_by(group) %>% top_n(1, wt = auc)
 
 #bipolar cell cytoplasm
-p_BP <- CoveragePlot(seurat,
-                   region = "chr2-219509052-219517235",
+p_BC <- CoveragePlot(seurat,
+                   region = "chr20-35096216-35096906",
                    group.by = "celltype",
                    extend.upstream = 1000,
                    extend.downstream = 1000)
@@ -523,6 +566,19 @@ p_rod <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
+#AC
+p_AC <- CoveragePlot(seurat,
+                   region = "chr19-53908005-53910262",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+#BC_RGC
+p_RGC <- CoveragePlot(seurat,
+                   region = "chr1-180229071-180231788",
+                   group.by = "celltype",
+                   extend.upstream = 1000,
+                   extend.downstream = 1000)
+
 patchwork::wrap_plots(p_BP, p_cone, ncol = 1)
 patchwork::wrap_plots(p_HC, p_MG, ncol = 1)
 patchwork::wrap_plots(p_RPE, p_RP, ncol = 1)
@@ -559,13 +615,13 @@ peaks_matched <- MatchRegionStats(meta.feature = seurat[['ATAC']]@meta.features[
 
 #bipolar cell cytoplasm	
 motif_enrichment_BP <- FindMotifs(seurat,
-                                    features = top_peaks_ct$feature[top_peaks_ct$group == "bipolar cell cytoplasm"],
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "BC"],
                                     background = peaks_matched) %>%
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_BP <- motif_enrichment_BP %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #Cone
 motif_enrichment_Cone <- FindMotifs(seurat,
@@ -575,47 +631,47 @@ motif_enrichment_Cone <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Cone <- motif_enrichment_Cone %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #horizontal cells
 motif_enrichment_HC <- FindMotifs(seurat,
-                                    features = top_peaks_ct$feature[top_peaks_ct$group == "horizontal cells"],
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "HC"],
                                     background = peaks_matched) %>%
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_HC <- motif_enrichment_HC %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #Müller glia
 motif_enrichment_MG <- FindMotifs(seurat,
-                                    features = top_peaks_ct$feature[top_peaks_ct$group == "Müller glia"],
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "MG"],
                                     background = peaks_matched) %>%
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_MG <- motif_enrichment_MG %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #retinal pigment epithelial
 motif_enrichment_RPE <- FindMotifs(seurat,
-                                    features = top_peaks_ct$feature[top_peaks_ct$group == "retinal pigment epithelia cells"],
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "RPE"],
                                     background = peaks_matched) %>%
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RPE <- motif_enrichment_RPE %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #retinal progenitor cells
 motif_enrichment_RP <- FindMotifs(seurat,
-                                    features = top_peaks_ct$feature[top_peaks_ct$group == "retinal progenitor cells"],
+                                    features = top_peaks_ct$feature[top_peaks_ct$group == "RPC"],
                                     background = peaks_matched) %>%
   mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_RP <- motif_enrichment_RP %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
 
 #Rod
 
@@ -626,27 +682,62 @@ motif_enrichment_Rod <- FindMotifs(seurat,
   mutate(padj = p.adjust(pvalue, method="BH"))
 enriched_motif_Rod <- motif_enrichment_Rod %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
+  top_n(-4, wt = padj)
+
+#AV
+
+motif_enrichment_AC <- FindMotifs(seurat,
+                                     features = top_peaks_ct$feature[top_peaks_ct$group == "AC"],
+                                     background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_AC <- motif_enrichment_AC %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-4, wt = padj)
+
+#RGC BC
+
+motif_enrichment_RGC <- FindMotifs(seurat,
+                                     features = top_peaks_ct$feature[top_peaks_ct$group == "BC (RGC?)"],
+                                     background = peaks_matched) %>%
+  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
+  mutate(padj = p.adjust(pvalue, method="BH"))
+enriched_motif_RGC <- motif_enrichment_RGC %>%
+  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
+  top_n(-4, wt = padj)
 
 #plot top 4 overrepresented TF binding motifs for cell types
-p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:6], ncol = 4)
-p_cone <- MotifPlot(seurat, motifs = enriched_motif_Cone$motif[1:6], ncol=4)
+p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:4], ncol = 4)
+p_cone <- MotifPlot(seurat, motifs = enriched_motif_Cone$motif[1:4], ncol=4)
 p_BP / p_cone
 
-p_HC <- MotifPlot(seurat, motifs = enriched_motif_HC$motif[1:6], ncol = 4)
-p_MG <- MotifPlot(seurat, motifs = enriched_motif_MG$motif[1:6], ncol=4)
+p_HC <- MotifPlot(seurat, motifs = enriched_motif_HC$motif[1:4], ncol = 4)
+p_MG <- MotifPlot(seurat, motifs = enriched_motif_MG$motif[1:4], ncol=4)
 p_HC / p_MG
 
-p_RPE <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:6], ncol = 4)
-p_RP <- MotifPlot(seurat, motifs = enriched_motif_RP$motif[1:6], ncol=4)
+p_RPE <- MotifPlot(seurat, motifs = enriched_motif_RPE$motif[1:4], ncol = 4)
+p_RP <- MotifPlot(seurat, motifs = enriched_motif_RP$motif[1:4], ncol=4)
 p_RPE / p_RP
 
-p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:6], ncol = 4)
-p_Rod
+p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:4], ncol = 4)
+p_AC <- MotifPlot(seurat, motifs = enriched_motif_AC$motif[1:4], ncol = 4)
+p_Rod / p_AC
+
+p_RGC <- MotifPlot(seurat, motifs = enriched_motif_RGC$motif[1:4], ncol = 4)
+p_RGC
 ```
 ```{r}
 #check expression of corresponding TFs
 DefaultAssay(seurat) <- "RNA"
+
+#write a for loop
+# Looping through the variable last part
+for (i in c("RP", "RGC", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
+  # Constructing the variable name using paste0
+  temp_name <- get(paste0("enriched_motif_", i))
+  temp_name$motif.name
+  }
+
 
 p_BP <- FeaturePlot(seurat,
                   c("NEUROD1","NEUROG(var.2)","Ptf1a","TAL1::TCF3", "Ascl2", "BHLHA15(var.2)"),
@@ -857,7 +948,8 @@ p2 <- FeaturePlot(seurat,
                   ncol = 6) & NoAxes() & NoLegend()
 (p1 / p2) + patchwork::plot_layout(height = c(1,2))
 
-
+p1
+p2
 ```
 # Step 4: Visualization of GRN
 
