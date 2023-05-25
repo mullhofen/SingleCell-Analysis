@@ -42,7 +42,7 @@ library(shiny)
 # Step 1. Load the data and create the Seurat object
 
 ```{r, warning = FALSE}
-#read in RNA/ATAC h5 matrix
+#read in RNA/ATAC h5 matrix (35 week old human retinal organoid)
 counts <- Read10X_h5("Data/filtered_feature_bc_matrix.h5")
 
 #get human genome annotation (vhg38)
@@ -112,7 +112,7 @@ seqlevels(seurat[['ATAC']]@ranges) <- intersect(seqlevels(granges(seurat[['ATAC'
 
 ```{r}
 #RNA: check detected genes/transcript #, % mtRNA
-#ATAC: check detected peaks/fragments #, too weak fragment around TSS
+#ATAC: check detected peaks/fragments #, too weak fragment around TSS,
 #      discard fragments with single nucleosome length
 
 seurat <- PercentageFeatureSet(seurat, pattern = "^MT-", col.name = "percent.mt", assay = "RNA")
@@ -128,7 +128,7 @@ VlnPlot(seurat,
         ncol = 5,
         pt.size = 0)
 
-#manually set threshhold for each feature
+#manually set threshold for each feature
 #tutorial: subset = nFeature_RNA > 1000 &, nFeature_RNA < 7500 &, percent.mt < 30 &, nFeature_ATAC > 1000 &, nFeature_ATAC < 30000, TSS.enrichment > 1 &, nucleosome_signal < 2
 
 seurat <- subset(seurat,
@@ -149,7 +149,7 @@ seurat <- subset(seurat,
 #RNA analysis pipeline
 #plot representative marker expression for major cell types (retina)
 DefaultAssay(seurat) <- "RNA"
-seurat <- NormalizeData(seurat) %>% #data normalization
+seurat <- NormalizeData(seurat) %>%          #data normalization
   FindVariableFeatures(nfeatures = 3000) %>% #highly variable genes identification
   CellCycleScoring(s.features = cc.genes.updated.2019$s.genes,
                    g2m.features = cc.genes.updated.2019$g2m.genes) %>%
@@ -158,14 +158,14 @@ seurat <- NormalizeData(seurat) %>% #data normalization
   RunUMAP(dims = 1:20, reduction.name = "umap_rna", reduction.key = "UMAPRNA_")
 
 p1 <- DimPlot(seurat, group.by = "orig.ident", reduction = "umap_rna") & NoAxes()
+#plot sig. cell marker genes from Wahle et al. 2023
 p2 <- FeaturePlot(seurat,
                   c("NR2E3", "EBF3","NEUROG1","TFAP2A","PRDM8","TFAP2B","EGR2","MYRF"),
 reduction = "umap_rna") & NoAxes() & NoLegend()
 
 p1 | p2
 
-#some cells already died out so markers not visible
-
+#some cell types might have already died out so markers not visible (organoid 35 weeks)
 ```
 
 ```{r}
@@ -175,7 +175,7 @@ DefaultAssay(seurat) <- "RNA"
 seurat <- FindNeighbors(seurat, dims = 1:ncol(Embeddings(seurat, assay = "RNA"))) %>%
   FindClusters(resolution = 0.2)
 
-##cluster marker identification
+##cluster marker identification (DE genes in each cluster)
 DE_cl_rna <- presto::wilcoxauc(seurat, "RNA_snn_res.0.2")
 top_markers <- DE_cl_rna %>%
   dplyr::filter(logFC > log(1.2) &
@@ -207,10 +207,6 @@ seurat <- FindNeighbors(seurat, dims = 1:ncol(Embeddings(seurat,assay = "RNA")))
           FindClusters(resolution = 0.2)
 
 ##cluster marker identification
-
-#presto package not supported M1 -> CAVE different from tutorial, used old method
-#DE_cl_rna <- presto::wilcoxauc(seurat, "RNA_snn_res.0.2")
-
 DE_cl_rna <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = log(1.2), test.use = "wilcox")
 
 top_markers <- DE_cl_rna %>% group_by(cluster) %>% top_n(n = 1, wt = avg_log2FC)
@@ -287,7 +283,7 @@ Integrate RNA and ATAC assays to identify cell type heterogeneity, and look for 
 # Step 1: Weighted nearest neighbor analysis
 
 ```{r}
-#calculated weighted nearest neighbor analysis (with both RNA and ATAC)
+#calculated weighted nearest neighbor analysis (combined RNA and ATAC)
 seurat <- FindMultiModalNeighbors(seurat,
                                   reduction.list = list("pca", "lsi"),
                                   dims.list = list(1:ncol(Embeddings(seurat, "pca")),
@@ -316,14 +312,15 @@ top_clusters_ct <- DE_ct %>%
          pct_in - pct_out > 30 &
          pct_out < 20) %>%
   group_by(group) %>%
-  top_n(10, wt = auc) %>% View()
+  top_n(10, wt = auc)
 
 ```
 
 
 ```{r}
-#Annotation, gene list from paper, cluster corrwspond to cell type from paper
+#Annotation, gene list from Wahle et al. 2023, cluster correspond to cell type from paper
 
+#full list
 #marker_genes <- list(c("CYP1B1", "HES5", "NME4", "ISYNA1", "CD99", "PRSS23"),c("ТТС9B", "ELAVL3", "GNG3", "CHRNB3", "EBF3", "EBF1", "POU4F2", "SLC18A2", "POU6F2", "CNTN2", "NEFM", "ELAVL4", "NEFL", "RAB31", "ID3", "TMSB15A"),c( "GRIA4", "TNR", "TFAP2B", "ONECUT1", "PLXNA2", "ONECUT2", "APBB2", "PROX1", "CNTNAP2"),c( "GAD1", "RUNX1T1", "PLPPR1", "MIR181A1HG", "NRXN1"),c( "TMEM215", "CA10", "GNG13", "VSX1", "HPCA", "DOK6", "IGSF21", "NEUROD4", "MAP7", "CADPS"),c( "AC023905.1", "GNAT2", "PEX5L", "KCNB2", "MYL4", "NXNL1", "SLC38A5", "RRAD", "SH3GL2", "MLXIP"),c( "PDE6A", "CLUL1", "NR2E3", "CABP5", "SAG", "GNAT1", "REEP6", "GPR160", "PRPH2", "AL451062.1"),c( "F3", "FLT1", "CFI", "OAF", "LGALS3", "PHLDA1", "LGI4", "WIF1", "CRYM"),c( "RLBP1", "SFRP1", "SFRP5", "PLD5", "OC90", "NCCRP1", "MET", "COL8A1", "ATP6V1C2", "TYRP1", "TRPM1"))
 
 #more specific list with no coexpression in other cell types:
@@ -331,18 +328,20 @@ marker_genes <- list(c("CYP1B1", "HES5", "NME4", "ISYNA1", "CD99", "PRSS23"),c("
 
 DefaultAssay(seurat) <- "RNA"
 seurat <- AddModuleScore(seurat, marker_genes)
-FeaturePlot(seurat, paste0("Cluster",1:9), order=T, reduction = "umap")
+FeaturePlot(seurat, c("RPC","RGC","HC","AC", "BC", "Cone", "Rod", "MG", "RPE"), order=T, reduction = "umap")
 
-#correlate gene cluster to cell type by eye
-seurat$celltype <- setNames(rep(c("RPC","BC (RGC?)","HC","AC", "BC", "Cone", "Rod", "MG", "RPE"), 
-                                c(1,1,1,1,2, 1, 1, 2, 1 )),
-                            c(7,8,6,11, c(9,10), 1, 0, c(3,4), 5))[as.character(seurat$wsnn_res.0.2)]
+#correlate gene cluster to cell typevisually
+seurat$celltype <- setNames(rep(c("RPC","HC","AC", "BC", "Cone", "Rod", "MG", "RPE"), 
+                                c(1,1,1,3, 1, 1, 2, 1)), #number of clusters per cell type
+                                c(7,6,11, c(8,9,10), 1, 0, c(3,4), 5))[as.character(seurat$wsnn_res.0.2)] # correspdonding UMAP clusters
 
-p_cluster_celltypes <- UMAPPlot(seurat, group.by = "celltype", label=T) & NoAxes()
+p_cluster_celltypes <- UMAPPlot(seurat, group.by = "celltype",label=TRUE, cols = c("RPC"="#92BFE5","BC (RGC?)"="#387866","HC"="#4DA28A","AC"="#40814E", "BC"="#CEAE3C", "Cone"="#D8833B", "Rod"="#BC4D3D", "MG"="#437EB4", "RPE"="#2E578B")) & NoAxes() 
+p_cluster_celltypes+ ggtitle("Cell type annotations based on Wahle, et al. 2023")
 
-p_cluster_celltypes
+FeaturePlot(seurat, c("RPC","RGC","HC","AC", "BC", "Cone", "Rod", "MG", "RPE"), order=T, reduction = "umap") & NoLegend()
 
-#all clusters seperately
+
+#plot all clusters seperately
 FeaturePlot(seurat, "Cluster1", order=T, reduction = "umap")
 FeaturePlot(seurat, "Cluster2", order=T, reduction = "umap")
 FeaturePlot(seurat, "Cluster3", order=T, reduction = "umap")
@@ -369,7 +368,7 @@ top_markers_ct <- DE_ct %>%
          auc > 0.65 &
          pct_in - pct_out > 30 &
          pct_out < 20) %>%
-  group_by(group) %>%
+  group_by(group) %>% View()
   top_n(10, wt = auc)
 #top_markers_ct %>% top_n(1, wt = auc) %>% View()
 
@@ -380,7 +379,7 @@ top_peaks_ct <- DA_ct %>%
   dplyr::filter(abs(logFC) > log(1.1) &
          padj < 0.01 &
          auc > 0.55) %>%
-  group_by(group) %>%
+  group_by(group) %>% View()
   top_n(100, wt = auc)
 top_peaks_ct %>% top_n(5, wt=auc) -> top_5_peaks_ct
 #top_peaks_ct %>% top_n(1, wt=auc) %>% View()
@@ -481,7 +480,7 @@ p_RPE <- CoveragePlot(seurat,
                    extend.downstream = 1000)
 
 #RPC
-p_RPC <- CoveragePlot(seurat,
+p_RP <- CoveragePlot(seurat,
                    region = "CPAMD8", 
                    features = "CPAMD8",
                    group.by = "celltype",
@@ -514,8 +513,9 @@ p_RGC <- CoveragePlot(seurat,
 patchwork::wrap_plots(p_RP, p_RGC, ncol = 1)
 patchwork::wrap_plots(p_HC, p_AC, ncol = 1)
 patchwork::wrap_plots(p_BC, p_cone, ncol = 1)
-patchwork::wrap_plots(p_Rod, p_MG, ncol = 1)
-p_RPE
+patchwork::wrap_plots(p_rod, p_MG, ncol = 1)
+p_rod
+p_cone
 
 ```
 
@@ -585,10 +585,12 @@ p_RGC <- CoveragePlot(seurat,
                    extend.upstream = 1000,
                    extend.downstream = 1000)
 
-patchwork::wrap_plots(p_BP, p_cone, ncol = 1)
+patchwork::wrap_plots(p_BC, p_cone, ncol = 1)
 patchwork::wrap_plots(p_HC, p_MG, ncol = 1)
 patchwork::wrap_plots(p_RPE, p_RP, ncol = 1)
 p_rod
+p_cone
+p_RPE
 
 ```
 
@@ -607,11 +609,10 @@ df_pfm <- data.frame(t(sapply(pfm, function(x)
 
 #scan motifs
 seurat <- AddMotifs(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, pfm = pfm)
-
 ```
 
 ```{r}
-#identify enriched TF binding motifs in our peak list (celltype specific)
+#identify enriched TF binding motifs in our peak list (cell-type specific)
 DefaultAssay(seurat) <- "ATAC"
 open_peaks <- AccessiblePeaks(seurat)
 
@@ -702,16 +703,6 @@ enriched_motif_AC <- motif_enrichment_AC %>%
   dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
   top_n(-6, wt = padj)
 
-#RGC BC
-
-motif_enrichment_RGC <- FindMotifs(seurat,
-                                     features = top_peaks_ct$feature[top_peaks_ct$group == "BC (RGC?)"],
-                                     background = peaks_matched) %>%
-  mutate(symbol = setNames(ifelse(is.na(df_pfm$symbol), df_pfm$name, df_pfm$symbol), df_pfm$id)[motif]) %>%
-  mutate(padj = p.adjust(pvalue, method="BH"))
-enriched_motif_RGC <- motif_enrichment_RGC %>%
-  dplyr::filter(padj < 0.01 & fold.enrichment > 3) %>%
-  top_n(-6, wt = padj)
 
 #plot top 4 overrepresented TF binding motifs for cell types
 p_BP <- MotifPlot(seurat, motifs = enriched_motif_BP$motif[1:6], ncol = 6)
@@ -729,20 +720,13 @@ p_RPE / p_RP
 p_Rod <- MotifPlot(seurat, motifs = enriched_motif_Rod$motif[1:6], ncol = 6)
 p_AC <- MotifPlot(seurat, motifs = enriched_motif_AC$motif[1:6], ncol = 6)
 p_Rod / p_AC
-
-p_RGC <- MotifPlot(seurat, motifs = enriched_motif_RGC$motif[1:6], ncol = 6)
-p_RGC
-
-
-
-
 ```
 ```{r, warning =FALSE}
 #check expression of corresponding TFs
 DefaultAssay(seurat) <- "RNA"
 
 # Loop through the variable suffixes for enriched motif plots
-for (i in c("RP", "RGC", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
+for (i in c("RP", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
   # Construct the variable name using paste0
   temp_name <- get(paste0("enriched_motif_", i))
   
@@ -760,12 +744,16 @@ for (i in c("RP", "RGC", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
   # Print the feature plot
   print(feature_plot)
 }
-
-
-
 p_cluster_celltypes
 ##if not cell-type specific: not bio relevant, not critcial celltype defined TF
 ##check more details, not just top 4
+
+for (i in c("RP", "HC", "AC", "BP", "Cone", "Rod", "MG", "RPE")) {
+  # Construct the variable name using paste0
+  temp_name <- get(paste0("enriched_motif_", i))
+  
+  # Access the "motif.name" column within the data frame
+  motif_names[i] <- temp_name$motif.name}
 ```
 
 # Step 4: ChromVAR: another motif enrichment analysis
@@ -774,7 +762,7 @@ p_cluster_celltypes
 #estimates motif activity score for each motif on cell level
 
 #create chromvar assay (JASPAR motifs and chromvar est. accessibility scores)
-#seurat <- RunChromVAR(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, assay ="ATAC")
+seurat <- RunChromVAR(seurat, genome = BSgenome.Hsapiens.UCSC.hg38, assay ="ATAC")
 
 #new differential activity analysis with chromvar
 DefaultAssay(seurat) <- "chromvar"
@@ -793,14 +781,14 @@ FeaturePlot(seurat,
             features = top_motifs_ct$feature,
             cols = bluered_colscheme(30),
             reduction = "umap",
-            ncol = 3) & NoAxes() & NoLegend()
+            ncol = 4) & NoAxes() & NoLegend()
 p_cluster_celltypes
+#order of cell type: AC, BC, Cone, HC, MG, Rod, RPC, RPE
 ##change top number of motifs to 2 or 3
 ```
 
 ```{r}
-#together with the DE analysis on TFs between cell types. We can
-
+#together with the DE analysis on TFs between cell types ->
 #obtain list of TF (animalTFDB database)
 
 tfs <- read.table("/Users/moritzullhofen/Desktop/ETH/SS23/AA Single Cell Technologies/DryLab/#2 More advanced single cell analyses/AA 3 Analysis of single-cell multiome data (RNA & ATAC)/Data/Homo_sapiens_TF.txt", sep="\t", header=T)
@@ -811,14 +799,15 @@ marker_tfs_ct <- DE_ct %>%
          abs(logFC) > log(1.2) &
          padj < 0.01 &
          auc > 0.65 &
-         pct_in - pct_out > 20) %>%
+         pct_in - pct_out > 20) -> marker_tfs_ct_test  
   inner_join(tf_motifs_ct,
              by = c("feature" = "symbol"),
              suffix = c("_tf","_motif")) %>%
-  dplyr::filter(group_tf == group_motif)
+  filter(group_tf == group_motif)
+#results:enriched motif with also DE expressed Tf, IN THE SAME CELL TYPE
 
 top_tfs_ct <- group_by(marker_tfs_ct, group_tf) %>%
-  top_n(2, wt = auc_motif)
+  top_n(1, wt = auc_motif)
 
 #correlate DE of RNA with enriched motifs -> TFs
 beach_colscheme <- colorRampPalette(c("#cdcdcd","#edf8b1","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#0c2c84"))
@@ -829,7 +818,7 @@ p1 <- FeaturePlot(seurat,
                   reduction = "umap",
                   order=T,
                   cols=beach_colscheme(30),
-                  ncol=6) & NoAxes() & NoLegend()
+                  ncol=5) & NoAxes() & NoLegend()
 
 DefaultAssay(seurat) <- "chromvar"
 p2 <- FeaturePlot(seurat,
@@ -837,9 +826,11 @@ p2 <- FeaturePlot(seurat,
                   reduction = "umap",
                   order=T,
                   cols=bluered_colscheme(30),
-                  ncol=6) & NoAxes() & NoLegend()
+                  ncol=5) & NoAxes() & NoLegend()
 
 p1 / p2
+p_cluster_celltypes
+#AC; HC; MG; RPC; RPE
 ```
 
 ## Section 3: Gene regulatory network reconstruction
@@ -873,7 +864,7 @@ registerDoParallel(20)
 #with interaction with peak accessibility where putative TF binding site is located
 seurat <- infer_grn(seurat,
                     parallel = T,
-                    tf_cor = 0.05,     #prefilter TF
+                    tf_cor = 0.04,     #prefilter TF
                     method="glm",
                     family="gaussian",
                     scale=F,
@@ -887,11 +878,12 @@ grn <- seurat@grn@networks$glm_network@coefs %>%
 # Step 3: Regulons
 
 ```{r}
-#generate list of regulons (genes co-regulated pos or neg. by same TF)
+#generate list of regulons (group of genes co-regulated pos or neg. by same TF)
 positive_regulons <- split(grn$target[grn$estimate>0], grn$tf[grn$estimate>0])
 positive_regulons <- positive_regulons[lengths(positive_regulons) > 10]
 negative_regulons <- split(grn$target[grn$estimate<0], grn$tf[grn$estimate<0])
 negative_regulons <- negative_regulons[lengths(negative_regulons) > 10]
+
 
 #calculate regulon activity score for each regulon in each cell
 DefaultAssay(seurat) <- "RNA"
@@ -911,26 +903,29 @@ seurat[['regulon']] <- CreateAssayObject(data = t(cbind(mod_act_pos, mod_act_neg
 ```
 
 ```{r}
-#feature plots for same TFs  found combining DE and chromVAR analysis, and their positive and negative regulons.
+#feature plots for same TFs  found combining DE and chromVAR analysis, and their positive and negative regulons
+#try top_tfs_ct$features instead
+marker_tfs_ct_test %>% group_by(group) %>% top_n(1, wt=auc) -> marker_tfs_ct_test_top1
 DefaultAssay(seurat) <- "RNA"
 p1 <- FeaturePlot(seurat,
-                  top_tfs_ct$feature,
+                  marker_tfs_ct_test_top1$feature, #######
                   reduction = "umap",
                   cols = beach_colscheme(30),
                   order = T,
-                  ncol = 6) & NoAxes() & NoLegend()
+                  ncol = 8) & NoAxes() & NoLegend()
 DefaultAssay(seurat) <- "regulon"
 p2 <- FeaturePlot(seurat,
-                  features = c(intersect(paste0(top_tfs_ct$feature,"(+)"), rownames(seurat)),
-                               intersect(paste0(top_tfs_ct$feature,"(-)"), rownames(seurat))),
+                  features = c(intersect(paste0(marker_tfs_ct_test_top1$feature,"(+)"), rownames(seurat)),###
+                               intersect(paste0(marker_tfs_ct_test_top1$feature,"(-)"), rownames(seurat))),
                   reduction = "umap",
                   cols = bluered_colscheme(30),
                   order = T,
-                  ncol = 6) & NoAxes() & NoLegend()
-(p1 / p2) + patchwork::plot_layout(height = c(1,2))
+                  ncol = 4) & NoAxes() & NoLegend()
+(p1 / p2) + patchwork::plot_layout(height = c(1,1))
 
 p1
 p2
+
 ```
 # Step 4: Visualization of GRN
 
@@ -959,7 +954,7 @@ p1/p2
 seurat <- get_network_graph(seurat, network = "glm_network", graph_name='umap_graph')
 plot_network_graph(seurat, graph='umap_graph')
 
-#other graph layouts (no umap)
+#other graph layouts (not umap)
 seurat <- get_network_graph(
     seurat, 
     graph_name = 'full_graph', 
@@ -973,9 +968,6 @@ p4 <- plot_network_graph(seurat, graph='full_graph', layout='matrix', text_size=
 
 
 #default: graph labelled all TF, remove labels, look into source script (ggraph like ggplot2)
-
-# Assuming the .R file is named network_functions.R
-#source("/Users/moritzullhofen/Desktop/ETH/SS23/AA Single Cell Technologies/DryLab/#2 More advanced single cell analyses/AA 3 Analysis of single-cell multiome data (RNA & ATAC)/Data/plots.R")
 ```
 
 
